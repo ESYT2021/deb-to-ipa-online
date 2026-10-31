@@ -24,7 +24,7 @@ jobs:
           zip -r ${{ github.workspace }}/App.ipa .
 
       - name: Upload IPA
-        uses: actions/download-artifact@v8.0.2
+        uses: actions/upload-artifact@v4
         with:
           name: App
           path: ${{ github.workspace }}/App.ipa
