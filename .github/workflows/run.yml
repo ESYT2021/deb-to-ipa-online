@@ -23,6 +23,14 @@ jobs:
           cd ${{ github.workspace }}/ipa
           zip -r ${{ github.workspace }}/App.ipa .
 
+      - name: Inspect deb
+        run: |
+          dpkg-deb -c app.deb
+          dpkg-deb -e app.deb control
+          ls control
+          cat control/postinst 2>/dev/null || true
+          strings app/Applications/Aemulo.app/Aemulo | grep -E '^/(var|private|Library|usr|System)' | sort -u
+
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
