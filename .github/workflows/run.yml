@@ -12,32 +12,61 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Convert deb to IPA
+      - name: Download and extract deb
+        env:
+          DEB_URL: ${{ github.event.inputs.deb }}
         run: |
-          curl -L -o ${{ github.workspace }}/app.deb "${{ github.event.inputs.deb }}"
-          dpkg-deb -X ${{ github.workspace }}/app.deb ${{ github.workspace }}/app
-
-          mkdir -p ${{ github.workspace }}/ipa/Payload
-          cp -R ${{ github.workspace }}/app/Applications/* ${{ github.workspace }}/ipa/Payload
-          
-          cd ${{ github.workspace }}/ipa
-          zip -r ${{ github.workspace }}/App.ipa .
+          curl -L -o app.deb "$DEB_URL"
+          dpkg-deb -x app.deb app
 
       - name: Inspect deb
+        continue-on-error: true
         run: |
+          echo "=== Files in deb ==="
           dpkg-deb -c app.deb
+
+          echo "=== Control files / install scripts ==="
           dpkg-deb -e app.deb control
           ls control
           cat control/postinst 2>/dev/null || true
-          strings app/Applications/Aemulo.app/Aemulo | grep -E '^/(var|private|Library|usr|System)' | sort -u
 
-    - name: Show entitlements
+          echo "=== Hardcoded system paths in binaries ==="
+          for bin in app/Applications/*.app/*; do
+            if [ -f "$bin" ] && [ -x "$bin" ]; then
+              echo "--- $bin ---"
+              strings "$bin" | grep -E '^/(var|private|Library|usr|System)' | sort -u
+            fi
+          done
+
+      - name: Show entitlements
+        continue-on-error: true
         run: |
           sudo apt-get install -y ldid
-          ldid -e app/Applications/Aemulo.app/Aemulo
-          
+          for bin in app/Applications/*.app/*; do
+            if [ -f "$bin" ] && [ -x "$bin" ]; then
+              echo "--- $bin ---"
+              ldid -e "$bin"
+            fi
+          done
+
+      - name: Build IPA
+        run: |
+          mkdir -p ipa/Payload
+
+          # Find the .app bundle (works for rootful and rootless debs)
+          APP=$(find app -type d -name "*.app" -path "*Applications*" | head -n 1)
+          if [ -z "$APP" ]; then
+            echo "No .app bundle found in deb"
+            exit 1
+          fi
+          echo "Using bundle: $APP"
+          cp -R "$APP" ipa/Payload/
+
+          cd ipa
+          zip -r ../App.ipa Payload
+
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: App
-          path: ${{ github.workspace }}/App.ipa
+          path: App.ipa
