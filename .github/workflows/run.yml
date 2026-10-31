@@ -31,6 +31,11 @@ jobs:
           cat control/postinst 2>/dev/null || true
           strings app/Applications/Aemulo.app/Aemulo | grep -E '^/(var|private|Library|usr|System)' | sort -u
 
+    - name: Show entitlements
+        run: |
+          sudo apt-get install -y ldid
+          ldid -e app/Applications/Aemulo.app/Aemulo
+          
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
